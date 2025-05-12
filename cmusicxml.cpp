@@ -499,6 +499,7 @@ bool CMusicXMLReader::parseMXLDoc(const QDomLiteDocument& doc, XMLScoreWrapper& 
                     {
                         //int doubleDot=0;
                         int duration=item->childValue("duration")*factor;
+                        int grace = item->childCount("grace");
                         int staff = qMax<int>(item->childValue("staff")-1,0);
                         int currentVoice = qMax<int>(item->childValue("voice") -1,0);
                         auto& cv = voices[currentVoice];
@@ -642,7 +643,7 @@ bool CMusicXMLReader::parseMXLDoc(const QDomLiteDocument& doc, XMLScoreWrapper& 
                         {
                             if (!item->childCount("chord"))
                             {
-                                cv.beatCount+=duration;
+                                cv.beatCount += duration;
                                 cv.lastNote = CNoteObject(cv.v.size(),duration);
                                 cv.AddDuration(duration);
                             }
@@ -655,10 +656,10 @@ bool CMusicXMLReader::parseMXLDoc(const QDomLiteDocument& doc, XMLScoreWrapper& 
                             if (!p) p = item->elementByTag("unpitched");
                             if (p)
                             {
-                                int pitch=CPitchTextConvert::text2Pitch(p->childText("step") + p->childText("octave"))+p->childValue("alter");
+                                int pitch = CPitchTextConvert::text2Pitch(p->childText("step") + p->childText("octave"))+p->childValue("alter");
                                 if (pitch < 13)
                                 {
-                                    pitch=CPitchTextConvert::text2Pitch(p->childText("display-step") + p->childText("display-octave"))+p->childValue("display-alter");
+                                    pitch = CPitchTextConvert::text2Pitch(p->childText("display-step") + p->childText("display-octave"))+p->childValue("display-alter");
                                 }
                                 const bool isChord = (item->childCount("chord"));
                                 if (isChord)
@@ -680,6 +681,24 @@ bool CMusicXMLReader::parseMXLDoc(const QDomLiteDocument& doc, XMLScoreWrapper& 
                                 {
                                     cv.addChild("Rest",{"NoteValue","Triplet","Dotted"},{noteValue,triplet,dotted});
                                 }
+                            }
+                        }
+                        if (grace) {
+                            static const QStringList typelist = {"whole","half","quarter","eighth","16th","32nd","64th","whole"};
+                            const int noteValue = typelist.indexOf(item->elementByTag("type")->text);
+                            const int dotted = item->childCount("dot");
+                            const bool triplet = false;
+                            const int TieAdd = (TieType) ? 5 : 4;
+                            auto p = item->elementByTag("pitch");
+                            if (!p) p = item->elementByTag("unpitched");
+                            if (p)
+                            {
+                                int pitch = CPitchTextConvert::text2Pitch(p->childText("step") + p->childText("octave"))+p->childValue("alter");
+                                if (pitch < 13)
+                                {
+                                    pitch = CPitchTextConvert::text2Pitch(p->childText("display-step") + p->childText("display-octave"))+p->childValue("display-alter");
+                                }
+                                cv.addChild("Note",{"NoteValue","Triplet","Dotted","Pitch","NoteType"},{noteValue,triplet,dotted,pitch,TieAdd});
                             }
                         }
                     }
