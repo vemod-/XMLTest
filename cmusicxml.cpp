@@ -1104,10 +1104,7 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
     }
     else if (symbol.IsTuplet()) {
         counter.tuplets(x, voice);
-        tupletticks = counter.TupletActualTicks;
         normaldot = XMLSimpleSymbolWrapper::isDotted(symbol.getIntVal("TupletValue"));
-        tuplettriplet = XMLSymbolWrapper::isTriplet(tupletticks/counter.TupletCaption);
-        tupletnormal = XMLSimpleSymbolWrapper::noteType(symbol.getIntVal("TupletValue")/counter.TupletNormal);
     }
     else if (symbol.isDurated()) {
         duratedlist.append(symbol,symbol.ticks());
@@ -1152,18 +1149,19 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
                 }
             }
             counter.flip(symbol.ticks());
+            //counter.tripletFlip(symbol);
             if (!beamcount) {
                 if (symbol.noteValue() > 2) {
                     if (symbol.IsValuedNote()) {
-                        if (counter.CurrentTicksRounded + autobeamticks <= autobeamlimit) {
-                            if (counter.TickCounter <= currentMeter) {
+                        if (counter.Counter.CurrentTicksRounded + autobeamticks <= autobeamlimit) {
+                            if (counter.Counter.TickCounter <= currentMeter) {
                                 possibleautobeamnotes.append(note);
                             }
                         }
                     }
                 }
             }
-            if (autobeamticks + counter.CurrentTicksRounded >= autobeamlimit || counter.TickCounter >= currentMeter) {
+            if (autobeamticks + counter.Counter.CurrentTicksRounded >= autobeamlimit || counter.Counter.TickCounter >= currentMeter) {
                 //qDebug() << "autobeam" << counter.barCount() << autobeamlimit << autobeamticks << possibleautobeamnotes.size();
                 if (possibleautobeamnotes.size() > 1) {
                     possibleautobeamnotes.first()->appendChild("beam","number",1)->text = "begin";
@@ -1174,8 +1172,8 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
                 }
                 possibleautobeamnotes.clear();
             }
-            autobeamticks = (autobeamticks + counter.CurrentTicksRounded) % autobeamlimit;
-            if (counter.TickCounter >= currentMeter) autobeamticks = 0;
+            autobeamticks = (autobeamticks + counter.Counter.CurrentTicksRounded) % autobeamlimit;
+            if (counter.Counter.TickCounter >= currentMeter) autobeamticks = 0;
             for (const XMLSimpleSymbolWrapper&s : (const QList<XMLSimpleSymbolWrapper>)duratedlist.flip(symbol.ticks())) {
                 if (s.Compare("Slur")) {
                     notationselement->appendChild("slur",{"type","number"},{"stop","2"});
@@ -1322,12 +1320,7 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
             if (p.endsWith("b")) pitch->appendChild("alter")->text = "-1";
             pitch->appendChild("octave")->text = CPitchTextConvert::pitch2TextOctave(symbolpitch);
             if (symbol.IsAnyNote()) {
-                if (tuplettriplet) {
-                    note->appendChild("duration")->text = QString::number(symbol.ticks()*1.5);
-                }
-                else {
-                    note->appendChild("duration")->text = QString::number(symbol.ticks());
-                }
+                note->appendChild("duration")->text = counter.Counter.CurrentTicksRounded;
             }
         }
         else if (symbol.IsRest()) {
@@ -1340,12 +1333,7 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
                 note->appendChild("duration")->text = QString::number(currentMeter);
             }
             else {
-                if (tuplettriplet) {
-                    note->appendChild("duration")->text = QString::number(symbol.ticks()*1.5);
-                }
-                else {
-                    note->appendChild("duration")->text = QString::number(symbol.ticks());
-                }
+                note->appendChild("duration")->text = counter.Counter.CurrentTicksRounded;
             }
         }
         note->appendChild("type")->text = typelist[symbol.noteValue()];
@@ -1353,61 +1341,87 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
             note->appendChild("dot");
             if (symbol.dotted() == 2) note->appendChild("dot");
         }
-        if (symbol.IsAnyNote()) {
-            if (!symbol.dotted()) {
-                if (tuplettriplet && (!symbol.triplet())) {
-                    note->appendChild("dot");
-                }
-                else if (counter.underTriplet() && XMLSymbolWrapper::isStraight(symbol.ticks())) {
-                    note->appendChild("dot");
-                }
+        if (symbol.IsRestOrAnyNote()) {
+            if (counter.isNormalTriplet() && XMLSymbolWrapper::isStraight(symbol.ticks())) {
+                note->appendChild("dot");
             }
-            bool tripletend  = false;
-            if (symbol.IsRestOrValuedNote()) tripletend = counter.tripletFlip(symbol);
+            //if (symbol.IsRestOrValuedNote()) counter.tripletFlip(symbol);
             QDomLiteElement* timemodification = nullptr;
-            if (counter.underTuplet()) {
-                if (tupletticks == counter.TupletActualTicks) {
-                    notationselement->appendChild("tuplet",{"number","type"},{"1","start"});
-                }
-                if (symbol.IsRestOrValuedNote()) {
-                    tupletticks -= symbol.ticks();
-                    if (tupletticks <= 0) {
-                        tupletticks = 0;
-                        notationselement->appendChild("tuplet",{"number","type"},{"1","stop"});
-                    }
-                }
-                timemodification = note->appendChild("time-modification");
-                timemodification->appendChild("actual-notes")->text = counter.TupletCaption;
-                if (tuplettriplet) {
-                    timemodification->appendChild("normal-notes")->text = (counter.TupletNormal * 2) / 3;
-                    timemodification->appendChild("normal-type")->text = typelist[tupletnormal-1];
-                }
-                else {
-                    timemodification->appendChild("normal-notes")->text = counter.TupletNormal;
-                    timemodification->appendChild("normal-type")->text = typelist[tupletnormal];
-                }
-                if (normaldot) timemodification->appendChild("normal-dot");
-                if (symbol.IsRestOrValuedNote()) {
-                    if (!tupletticks) {
-                        tuplettriplet = false;
-                    }
-                }
-            }
-            if (counter.underTriplet()) {
-                if (!timemodification) {
+            {
+                if (counter.isNormalTriplet()) {
                     if (symbol.IsRestOrValuedNote()) {
-                        if (symbol.ticks() == counter.TripletCount) {
-                            notationselement->appendChild("tuplet",{"number","type"},{"2","start"});
+                        if (counter.tripletStart()) {
+                            QDomLiteElement* tuplet = notationselement->appendChild("tuplet",{"number","type"},{"1","start"});
+                            QDomLiteElement* tupletactual = tuplet->appendChild("tuplet-actual");
+                            tupletactual->appendChild("tuplet-number")->text = 3;
+                            //tupletactual->appendChild("tuplet-type")->text = "16th";
+                            QDomLiteElement* tupletnormal = tuplet->appendChild("tuplet-normal");
+                            tupletnormal->appendChild("tuplet-number")->text = 2;
+                            //tupletnormal->appendChild("tuplet-type")->text = "16th";
                         }
-                        else if (tripletend) {
-                            notationselement->appendChild("tuplet",{"number","type"},{"2","stop"});
+                        else if (counter.tripletEnd()) {
+                            notationselement->appendChild("tuplet",{"number","type"},{"1","stop"});
                         }
                     }
                     timemodification = note->appendChild("time-modification");
                     timemodification->appendChild("actual-notes")->text = 3;
                     timemodification->appendChild("normal-notes")->text = 2;
                 }
-                if (symbol.IsRestOrValuedNote()) if (tripletend) counter.TripletCount = 0;
+                if (counter.isTuplet()) {
+                    if (symbol.IsRestOrValuedNote()) {
+                        if (counter.tupletStart()) {
+                            QDomLiteElement* tuplet = notationselement->appendChild("tuplet",{"number","type"},{"2","start"});
+                            QDomLiteElement* tupletactual = tuplet->appendChild("tuplet-actual");
+                            tupletactual->appendChild("tuplet-number")->text = counter.TupletCounter.Fraction.num;
+                            //tupletactual->appendChild("tuplet-type")->text = "eighth";
+                            QDomLiteElement* tupletnormal = tuplet->appendChild("tuplet-normal");
+                            tupletnormal->appendChild("tuplet-number")->text = counter.TupletCounter.Fraction.den;
+                            //tupletnormal->appendChild("tuplet-type")->text = "eighth";
+                        }
+                        if (counter.tupletEnd()) {
+                            notationselement->appendChild("tuplet",{"number","type"},{"2","stop"});
+                        }
+                    }
+                    if (!timemodification) {
+                        timemodification = note->appendChild("time-modification");
+                        timemodification->appendChild("actual-notes")->text = counter.TupletCounter.Fraction.num;
+                        timemodification->appendChild("normal-notes")->text = counter.TupletCounter.Fraction.den;
+                    }
+                    else {
+                        QDomLiteElement* actualnotes = timemodification->elementByTagCreate("actual-notes");
+                        QDomLiteElement* normalnotes = timemodification->elementByTagCreate("normal-notes");
+                        const CFraction f = CFraction(actualnotes->text.toInt(),normalnotes->text.toInt()) * counter.TupletCounter.Fraction;
+                        actualnotes->text = f.num;
+                        normalnotes->text = f.den;
+                    }
+                    if (normaldot) timemodification->appendChild("normal-dot");
+                }
+                if (counter.isTupletTriplet()) {
+                    if (symbol.IsRestOrValuedNote()) {
+                        if (counter.tripletStart()) {
+                            QDomLiteElement* tuplet = notationselement->appendChild("tuplet",{"number","type"},{"3","start"});
+                            QDomLiteElement* tupletactual = tuplet->appendChild("tuplet-actual");
+                            tupletactual->appendChild("tuplet-number")->text = 3;
+                            QDomLiteElement* tupletnormal = tuplet->appendChild("tuplet-normal");
+                            tupletnormal->appendChild("tuplet-number")->text = 2;
+                        }
+                        else if (counter.tripletEnd()) {
+                            notationselement->appendChild("tuplet",{"number","type"},{"3","stop"});
+                        }
+                    }
+                    if (!timemodification) {
+                        timemodification = note->appendChild("time-modification");
+                        timemodification->appendChild("actual-notes")->text = 3;
+                        timemodification->appendChild("normal-notes")->text = 2;
+                    }
+                    else {
+                        QDomLiteElement* actualnotes = timemodification->elementByTagCreate("actual-notes");
+                        QDomLiteElement* normalnotes = timemodification->elementByTagCreate("normal-notes");
+                        const CFraction f = CFraction(actualnotes->text.toInt(),normalnotes->text.toInt()) * CFraction(3,2);
+                        actualnotes->text = f.num;
+                        normalnotes->text = f.den;
+                    }
+                }
             }
         }
         if (symbol.IsRestOrValuedNote()) {
@@ -1482,7 +1496,7 @@ void CMusicXMLWriterStaff::writeMasterStuff(const int mastervoice, const XMLScor
             if (symbol.isMaster()) voicewriter.writeSymbol(pointer,symbol,counter,score);
             else if (symbol.IsRestOrValuedNote()) {
                 counter.flipAll(symbol.ticks());
-                staffcounter[mastervoice].setLen(counter.CurrentTicksRounded);
+                staffcounter[mastervoice].setLen(counter.Counter.CurrentTicksRounded);
                 if (++pointer >= voice.symbolCount()) counter.finish();
                 break;
             }
@@ -1521,7 +1535,7 @@ void CMusicXMLWriterStaff::writeVoice(const int /*staffpos*/,const int v,const X
                 }
             }
             if (symbol.IsRestOrValuedNote()) {
-                staffcounter[v].setLen(counter.CurrentTicksRounded);
+                staffcounter[v].setLen(counter.Counter.CurrentTicksRounded);
                 if (counter.newBar(voicewriter.currentMeter)) voicewriter.NewBar(counter.barCount() + 1,pointer);
                 if (++pointer >= voice.symbolCount()) counter.finish();
                 break;

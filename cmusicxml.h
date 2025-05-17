@@ -237,10 +237,10 @@ private:
     int patchcount = 0;
     int midichannel = 1;
 
-    int tupletticks = 0;
-    int tupletnormal = 0;
+    //int tupletticks = 0;
+    //int tupletnormal = 0;
     int normaldot = 0;
-    bool tuplettriplet = false;
+    //bool tuplettriplet = false;
     QDomLiteElementList chordnotes;
     QList<int> tiepitches;
     QList<int> prevtiepitches;
