@@ -1103,7 +1103,7 @@ void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symb
         vissym directiontypeelement->appendChild(wordselement(symbol.attribute("Text"),XMLFontWrapper(symbol),10));
     }
     else if (symbol.IsTuplet()) {
-        counter.tuplets(x, voice);
+        counter.beginTuplet(x, voice);
         normaldot = XMLSimpleSymbolWrapper::isDotted(symbol.getIntVal("TupletValue"));
     }
     else if (symbol.isDurated()) {
@@ -1490,24 +1490,24 @@ void CMusicXMLWriterStaff::writeMasterStuff(const int mastervoice, const XMLScor
     OCCounter& counter = staffcounter[mastervoice];
     int& pointer = x[mastervoice];
     CMusicXMLWriterVoice& voicewriter = w[0];
-    if (staffcounter[mastervoice].isReady()) {
+    if (staffcounter[mastervoice].FragmentCounter.isReady()) {
         forever {
             const XMLSymbolWrapper symbol = voice.XMLSymbol(pointer,mastermeter);
             if (symbol.isMaster()) voicewriter.writeSymbol(pointer,symbol,counter,score);
             else if (symbol.IsRestOrValuedNote()) {
                 counter.flipAll(symbol.ticks());
-                staffcounter[mastervoice].setLen(counter.Counter.CurrentTicksRounded);
-                if (++pointer >= voice.symbolCount()) counter.finish();
+                staffcounter[mastervoice].FragmentCounter.setLen(counter.Counter.CurrentTicksRounded);
+                if (++pointer >= voice.symbolCount()) counter.FragmentCounter.finish();
                 break;
             }
             else if (symbol.IsTuplet()) {
-                counter.tuplets(pointer,voice);
+                counter.beginTuplet(pointer,voice);
             }
             else if (symbol.IsTime()) {
                 mastermeter = OCCounter::calcTime(symbol);
             }
             if (++pointer >= voice.symbolCount()) {
-                counter.finish();
+                counter.FragmentCounter.finish();
                 break;
             }
         }
@@ -1520,7 +1520,7 @@ void CMusicXMLWriterStaff::writeVoice(const int /*staffpos*/,const int v,const X
     OCCounter& counter = staffcounter[v];
     int& pointer = x[v];
     CMusicXMLWriterVoice& voicewriter = w[v];
-    if (staffcounter[v].isReady())
+    if (staffcounter[v].FragmentCounter.isReady())
     {
         forever {
             const XMLSymbolWrapper symbol = voice.XMLSymbol(x[v],voicewriter.currentMeter);
@@ -1535,13 +1535,13 @@ void CMusicXMLWriterStaff::writeVoice(const int /*staffpos*/,const int v,const X
                 }
             }
             if (symbol.IsRestOrValuedNote()) {
-                staffcounter[v].setLen(counter.Counter.CurrentTicksRounded);
+                staffcounter[v].FragmentCounter.setLen(counter.Counter.CurrentTicksRounded);
                 if (counter.newBar(voicewriter.currentMeter)) voicewriter.NewBar(counter.barCount() + 1,pointer);
-                if (++pointer >= voice.symbolCount()) counter.finish();
+                if (++pointer >= voice.symbolCount()) counter.FragmentCounter.finish();
                 break;
             }
             if (++pointer >= voice.symbolCount()) {
-                counter.finish();
+                counter.FragmentCounter.finish();
                 break;
             }
         }
