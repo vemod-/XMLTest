@@ -930,13 +930,13 @@ QDomLiteElement* CMusicXMLWriterVoice::init(const int staffindex, const int voic
 void CMusicXMLWriterVoice::writeSymbol(const int x, const XMLSymbolWrapper& symbol, OCCounter& counter/*, const QList<QDomLiteElementList>& midibanks*/, const XMLScoreWrapper& score) {
     static const QStringList typelist = {"whole","half","quarter","eighth","16th","32nd","64th","whole"};
     static const QStringList hairpintypes = {"crescendo","diminuendo"};
-    if (symbol.Compare("Key")) {
+    if (symbol.IsKey()) {
         key = symbol.getIntVal("Key") - 6;
         QDomLiteElement* keyelem = attributes->prependChild("key");
         if (!symbol.isVisible()) keyelem->setAttribute("print-object","no");
         keyelem->appendChild("fifths")->text = key;
     }
-    else if (symbol.Compare("Clef")) {
+    else if (symbol.IsClef()) {
         static const QStringList sign = {"G","F","C","C","percussion"};
         static const QStringList line = {"2","4","3","4","3"};
         QDomLiteElement* clef = attributes->prependChild("clef");
